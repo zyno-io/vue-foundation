@@ -155,6 +155,8 @@ const optionsContainer = ref<HTMLDivElement>();
 
 /** Side the open list has committed to; null until it has had real content to measure. Deliberately not reactive -- it's written from onUpdated. */
 let optionsDisplayAbove: boolean | null = null;
+/** Whether the open list currently carries search-term marks. Not reactive -- it's bookkeeping for onUpdated. */
+let hasSearchMarks = false;
 
 const isLoading = ref(false);
 const remoteOptions = ref<T[]>();
@@ -299,7 +301,10 @@ const groupedOptions = computed(() => {
 });
 
 // watch props
-watch(() => props.modelValue, handleValueChanged);
+watch(
+    () => props.modelValue,
+    () => handleValueChanged()
+);
 
 // watch data
 
@@ -327,6 +332,7 @@ watch(shouldDisplayOptions, () => {
         setTimeout(handleOptionsDisplayed, 0);
     } else {
         isSearching.value = false;
+        hasSearchMarks = false;
         searchText.value = selectedOptionTitle.value ?? '';
 
         if (optionsContainer.value) {
@@ -335,11 +341,17 @@ watch(shouldDisplayOptions, () => {
     }
 });
 
-watch(effectiveOptions, () => {
+// a modelValue that arrived before its options -- or a non-null "unset" placeholder such as 0 that
+// never matches anything -- is still pending, so each new option list (or extractor) is another chance
+// to resolve it. this deliberately watches the unfiltered list: effectiveOptions changes on every search
+// keystroke, and re-running the value sync from there wiped whatever the user had just typed
+watch([allOptions, effectiveValueExtractor], () => {
     if (props.modelValue !== null && !isNotNullOrUndefined(selectedOption.value)) {
-        handleValueChanged();
+        handleValueChanged({ preserveSearchText: isSearching.value });
     }
+});
 
+watch(effectiveOptions, () => {
     if (
         (highlightedOptionKey.value !== null || isSearching.value) &&
         !effectiveOptions.value.find(option => option.key == highlightedOptionKey.value)
@@ -392,7 +404,7 @@ onBeforeUnmount(() => {
 
 async function loadInitialRemoteOptions() {
     await reloadOptions(true);
-    handleValueChanged();
+    handleValueChanged({ preserveSearchText: isSearching.value });
     if (remoteOptions.value) emit('optionsLoaded', remoteOptions.value);
 }
 
@@ -401,7 +413,7 @@ async function reloadOptions(invokeValueChanged = false) {
     isLoading.value = true;
     remoteOptions.value = (await props.loadOptions?.(effectiveSearchText)) ?? [];
     isLoading.value = false;
-    if (invokeValueChanged) handleValueChanged();
+    if (invokeValueChanged) handleValueChanged({ preserveSearchText: isSearching.value });
     setHighlightedOptionKey();
 }
 
@@ -691,17 +703,25 @@ function selectOption(option: VfSmartSelectOptionDescriptor<T>) {
     focusNextInput();
 }
 
-function handleValueChanged() {
+/**
+ * Syncs the selection to props.modelValue. The field text follows the selection too, unless the caller
+ * says the user is mid-search -- then the text is theirs, and closing the list restores the title.
+ */
+function handleValueChanged({ preserveSearchText = false } = {}) {
     if (props.modelValue !== null) {
+        // a miss stays null rather than becoming undefined: the selection watcher would read that as
+        // a change and push undefined into the parent's v-model
         selectedOption.value = effectiveValueExtractor.value
-            ? allOptions.value.find(o => props.modelValue === effectiveValueExtractor.value!(o))
+            ? (allOptions.value.find(o => props.modelValue === effectiveValueExtractor.value!(o)) ?? null)
             : props.modelValue;
         selectedOptionTitle.value = isNotNullOrUndefined(selectedOption.value) ? effectiveSelectionFormatter.value(selectedOption.value) : null;
-        searchText.value = selectedOptionTitle.value ?? '';
     } else {
         selectedOption.value = null;
         selectedOptionTitle.value = null;
-        searchText.value = '';
+    }
+
+    if (!preserveSearchText) {
+        searchText.value = selectedOptionTitle.value ?? '';
     }
 }
 
@@ -726,30 +746,58 @@ function focusNextInput() {
     if (nextInput) setTimeout(() => nextInput.focus(), 0);
 }
 
+/**
+ * Strips the marks an earlier pass left in an option row. This is the unwrap-and-normalize that
+ * mark.js's own unmark() performs, minus the NodeIterator walk it drives it with -- that walk leans
+ * on iterator quirks not every DOM implementation reproduces (happy-dom, which the unit tests run
+ * in, silently finds nothing), and a plain query is all the job needs.
+ */
+function unmarkElement(el: HTMLElement) {
+    el.querySelectorAll('mark[data-markjs]').forEach(mark => {
+        const parent = mark.parentNode;
+        if (!parent) return;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+        parent.normalize();
+    });
+}
+
 onUpdated(() => {
     if (!shouldDisplayOptions.value) return;
 
     // the list just changed size -- re-anchor it before anything reads its position
     positionOptionsContainer();
 
-    if (!isSearching.value || !filteringSearchText.value) return;
+    const optionRows = () => optionsContainer.value?.querySelectorAll<HTMLElement>('.option:not(.create-option)') ?? [];
+
+    if (!isSearching.value || !filteringSearchText.value) {
+        // the search ended with the list still open (text cleared, say). the rows Vue kept are the
+        // same nodes the last pass marked, and their vnodes haven't changed, so the marks stay put
+        // until someone takes them off
+        if (hasSearchMarks) {
+            optionRows().forEach(unmarkElement);
+            hasSearchMarks = false;
+            positionOptionsContainer();
+        }
+        return;
+    }
+
     const terms = filteringSearchText.value
         .trim()
         .replace(/[^a-z0-9 -]/gi, '')
         .split(' ');
-    optionsContainer.value?.querySelectorAll('.option:not(.create-option)').forEach(el => {
-        const mark = new Mark(el as HTMLElement);
-        mark.unmark({
+    const optionEls = optionRows();
+    optionEls.forEach(el => {
+        unmarkElement(el);
+        new Mark(el).mark(terms, {
             done: () => {
-                mark.mark(terms, {
-                    done: () => {
-                        // fix spaces around marks getting stripped
-                        el.innerHTML = el.innerHTML.replace(/ <mark /g, '&nbsp;<mark ').replace(/<\/mark> /g, '</mark>&nbsp;');
-                    }
-                });
+                // fix spaces around marks getting stripped
+                el.innerHTML = el.innerHTML.replace(/ <mark /g, '&nbsp;<mark ').replace(/<\/mark> /g, '</mark>&nbsp;');
             }
         });
     });
+
+    hasSearchMarks = optionEls.length > 0;
 
     // marking rewrites the option titles, and the non-breaking spaces it leaves behind can rewrap
     // one onto an extra line -- so the height everything above was anchored on is now out of date

@@ -62,6 +62,29 @@ test.describe('Smart Select', () => {
             await page.screenshot({ path: `${screenshotDir}/smart-select-filtered.png` });
         });
 
+        test('highlights the search term and clears the highlights when the search is cleared', async ({ page }) => {
+            const input = selectInput(page, 'demo-ss-basic');
+            await input.click();
+            await page.waitForSelector('.vf-smart-select-options');
+
+            const marks = page.locator('.vf-smart-select-options mark');
+
+            await input.pressSequentially('a');
+            await expect(marks.first()).toBeVisible();
+            await expect(input).toHaveValue('a');
+
+            // refining the search re-marks against the new term instead of stacking onto the old marks
+            await input.pressSequentially('n');
+            await expect(input).toHaveValue('an');
+            await expect.poll(async () => (await marks.allTextContents()).map(text => text.toLowerCase())).toEqual(['an', 'an']);
+
+            await input.press('Backspace');
+            await input.press('Backspace');
+            await expect(input).toHaveValue('');
+            await expect(page.locator('.vf-smart-select-options .option')).toHaveCount(6);
+            await expect(marks).toHaveCount(0);
+        });
+
         test('navigates with arrow keys and selects with Enter', async ({ page }) => {
             const input = selectInput(page, 'demo-ss-basic');
             await input.click();
