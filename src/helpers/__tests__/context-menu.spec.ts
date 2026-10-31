@@ -11,6 +11,17 @@ function createMouseEvent(x = 100, y = 100) {
     return { event, target };
 }
 
+/** The click a focused button fires on Enter/Space: no click count, no coordinates. */
+function createKeyboardClick() {
+    const target = document.createElement('button');
+    document.body.appendChild(target);
+    target.focus();
+
+    const event = new MouseEvent('click', { detail: 0, bubbles: true });
+    Object.defineProperty(event, 'currentTarget', { value: target });
+    return { event, target };
+}
+
 afterEach(() => {
     document.body.innerHTML = '';
 });
@@ -158,6 +169,24 @@ describe('positioning', () => {
         expect(getMenu().style.maxHeight).toBe('');
     });
 
+    it('opens below the target, not at a cursor, when opened from the keyboard', () => {
+        const { event, target } = createKeyboardClick();
+        target.getBoundingClientRect = () => ({ left: 40, right: 140, top: 50, bottom: 70 }) as DOMRect;
+        showContextMenu(event, { items: [] });
+
+        expect(getMenu().style.left).toBe('40px');
+        expect(getMenu().style.top).toBe('71px');
+    });
+
+    it('flips a keyboard-opened menu above the target when there is no room below', () => {
+        const { event, target } = createKeyboardClick();
+        target.getBoundingClientRect = () => ({ left: 40, right: 140, top: 600, bottom: 620 }) as DOMRect;
+        showContextMenu(event, { items: [] });
+
+        // Bottom edge lands at top - 1; top = 599 - 300.
+        expect(getMenu().style.top).toBe('299px');
+    });
+
     it('pins to the viewport and scrolls when taller than the viewport', () => {
         menuSize.height = 900;
         const { event } = createMouseEvent(100, 400);
@@ -270,5 +299,296 @@ describe('confirmation flow', () => {
         item.dispatchEvent(new MouseEvent('mouseleave'));
         expect(item.classList.contains('pending-confirm')).toBe(false);
         expect(item.innerText).toBe('Delete');
+    });
+});
+
+describe('keyboard', () => {
+    let listeners: (() => void)[] = [];
+    afterEach(() => {
+        listeners.forEach(remove => remove());
+        listeners = [];
+        // Close anything a test left open, so its document keydown listener goes too.
+        document.querySelectorAll<HTMLElement>('.vf-overlay').forEach(el => el.click());
+    });
+
+    function press(key: string, init: KeyboardEventInit = {}) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+        (document.activeElement ?? document.body).dispatchEvent(event);
+        return event;
+    }
+
+    function focusedTitle() {
+        return (document.activeElement as HTMLElement).innerText;
+    }
+
+    const items = (handler = vi.fn()) => [
+        { title: 'One', handler },
+        '-' as const,
+        { title: 'Two', handler: vi.fn() },
+        { title: 'Three', handler: vi.fn() }
+    ];
+
+    it('focuses the first item when opened from the keyboard', () => {
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: items() });
+
+        expect(focusedTitle()).toBe('One');
+        expect(document.querySelector('.vf-context-menu')!.getAttribute('role')).toBe('menu');
+        expect(document.activeElement!.getAttribute('role')).toBe('menuitem');
+    });
+
+    it('opens from a key event', () => {
+        const target = document.createElement('button');
+        document.body.appendChild(target);
+        const event = new KeyboardEvent('keydown', { key: 'ContextMenu' });
+        Object.defineProperty(event, 'currentTarget', { value: target });
+        showContextMenu(event, { items: items() });
+
+        expect(focusedTitle()).toBe('One');
+    });
+
+    it('leaves a pointer-opened menu unfocused until an arrow key', () => {
+        const { event } = createMouseEvent();
+        showContextMenu(event, { items: items() });
+        expect(document.activeElement).toBe(document.body);
+
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('One');
+    });
+
+    it('moves with the arrows, skipping separators and wrapping, and jumps with Home/End', () => {
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: items() });
+
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('Two');
+        press('ArrowDown');
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('One');
+        press('ArrowUp');
+        expect(focusedTitle()).toBe('Three');
+        press('Home');
+        expect(focusedTitle()).toBe('One');
+        press('End');
+        expect(focusedTitle()).toBe('Three');
+    });
+
+    it('activates the focused item with Enter or Space, closes, and refocuses the target', () => {
+        const handler = vi.fn();
+        const { event, target } = createKeyboardClick();
+        showContextMenu(event, { items: items(handler) });
+
+        const enter = press('Enter');
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(enter.defaultPrevented).toBe(true);
+        expect(document.querySelector('.vf-overlay')).toBeNull();
+        expect(document.activeElement).toBe(target);
+
+        showContextMenu(event, { items: items(handler) });
+        press(' ');
+        expect(handler).toHaveBeenCalledTimes(2);
+    });
+
+    it('leaves focus where the chosen item put it', () => {
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: [{ title: 'Edit', handler: () => input.focus() }] });
+
+        press('Enter');
+        expect(document.activeElement).toBe(input);
+    });
+
+    it('swallows Enter with nothing in the menu focused', () => {
+        const { event } = createMouseEvent();
+        showContextMenu(event, { items: items() });
+
+        expect(press('Enter').defaultPrevented).toBe(true);
+        expect(document.querySelector('.vf-overlay')).not.toBeNull();
+    });
+
+    it('closes on Escape without letting it reach listeners beneath', () => {
+        const beneath = vi.fn();
+        document.addEventListener('keydown', beneath);
+        listeners.push(() => document.removeEventListener('keydown', beneath));
+        const { event, target } = createKeyboardClick();
+        showContextMenu(event, { items: items() });
+
+        press('Escape');
+        expect(document.querySelector('.vf-overlay')).toBeNull();
+        expect(document.activeElement).toBe(target);
+        expect(beneath).not.toHaveBeenCalled();
+
+        // Closed: keys pass through again.
+        press('Escape');
+        expect(beneath).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes on Tab', () => {
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: items() });
+
+        press('Tab');
+        expect(document.querySelector('.vf-overlay')).toBeNull();
+    });
+
+    it('opens a submenu with → or Enter and leaves it with ← or Escape', () => {
+        const child = vi.fn();
+        const { event } = createKeyboardClick();
+        showContextMenu(event, {
+            items: [
+                { title: 'Leaf', handler: vi.fn() },
+                { title: 'Parent', items: [{ title: 'Child', handler: child }] }
+            ]
+        });
+        const menus = () => document.querySelectorAll('.vf-context-menu');
+
+        press('ArrowDown');
+        expect(document.activeElement!.getAttribute('aria-haspopup')).toBe('menu');
+        press('ArrowRight');
+        expect(menus()).toHaveLength(2);
+        expect(focusedTitle()).toBe('Child');
+
+        press('ArrowLeft');
+        expect(menus()).toHaveLength(1);
+        expect(focusedTitle()).toContain('Parent');
+
+        press('Enter');
+        expect(focusedTitle()).toBe('Child');
+        press('Escape');
+        expect(menus()).toHaveLength(1);
+        expect(document.querySelector('.vf-overlay')).not.toBeNull();
+
+        press('ArrowRight');
+        press('Enter');
+        expect(child).toHaveBeenCalled();
+        expect(document.querySelector('.vf-overlay')).toBeNull();
+    });
+
+    it('focuses an item on hover, so the arrows continue from it', () => {
+        const { event } = createMouseEvent();
+        showContextMenu(event, { items: items() });
+
+        document.querySelectorAll('.item')[1]!.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(focusedTitle()).toBe('Two');
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('Three');
+    });
+
+    it('confirms with a second Enter, and resets when the focus moves on', () => {
+        const handler = vi.fn();
+        const { event } = createKeyboardClick();
+        showContextMenu(event, {
+            items: [
+                { title: 'Delete', handler, shouldConfirm: true },
+                { title: 'Keep', handler: vi.fn() }
+            ]
+        });
+
+        press('Enter');
+        expect(focusedTitle()).toBe('Confirm');
+        press('ArrowDown');
+        expect(document.querySelector('.item')!.classList.contains('pending-confirm')).toBe(false);
+        expect((document.querySelector('.item') as HTMLElement).innerText).toBe('Delete');
+
+        press('ArrowUp');
+        press('Enter');
+        press('Enter');
+        expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores a held key's repeats, so holding Enter on the opener doesn't pick an item", () => {
+        const handler = vi.fn();
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: items(handler) });
+
+        expect(press('Enter', { repeat: true }).defaultPrevented).toBe(true);
+        expect(handler).not.toHaveBeenCalled();
+        expect(document.querySelector('.vf-overlay')).not.toBeNull();
+    });
+
+    it('ignores a hover the pointer did not make until the mouse moves', () => {
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: items() });
+        const two = document.querySelectorAll('.item')[1]!;
+
+        // The menu appeared under a resting cursor.
+        two.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(focusedTitle()).toBe('One');
+
+        two.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+        expect(focusedTitle()).toBe('Two');
+
+        // Keys hand the highlight back to the keyboard until the next real move.
+        press('ArrowDown');
+        document.querySelector('.item')!.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(focusedTitle()).toBe('Three');
+    });
+
+    it('closes a hover-opened submenu when the keyboard moves on', () => {
+        const { event } = createMouseEvent();
+        showContextMenu(event, {
+            items: [
+                { title: 'Leaf', handler: vi.fn() },
+                { title: 'Parent', items: [{ title: 'Child', handler: vi.fn() }] }
+            ]
+        });
+        const parent = document.querySelectorAll('.item')[1] as HTMLElement;
+
+        parent.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(parent.getAttribute('aria-expanded')).toBe('true');
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('Leaf');
+        expect(document.querySelectorAll('.vf-context-menu')).toHaveLength(1);
+        expect(parent.classList.contains('submenu-open')).toBe(false);
+        expect(parent.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('leaves focus alone when a pointer-only menu closes', () => {
+        const { event, target } = createMouseEvent();
+        target.tabIndex = 0;
+        showContextMenu(event, { items: items() });
+
+        const one = document.querySelector('.item') as HTMLElement;
+        one.dispatchEvent(new MouseEvent('mouseenter'));
+        one.click();
+        expect(document.activeElement).not.toBe(target);
+    });
+
+    it('gives the keys to the latest menu only', () => {
+        const first = vi.fn();
+        const second = vi.fn();
+        showContextMenu(createKeyboardClick().event, { items: [{ title: 'A1', handler: first }] });
+        showContextMenu(createKeyboardClick().event, {
+            items: [
+                { title: 'B1', handler: vi.fn() },
+                { title: 'B2', handler: second }
+            ]
+        });
+
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('B2');
+        press('Enter');
+        expect(second).toHaveBeenCalled();
+        expect(first).not.toHaveBeenCalled();
+
+        // With the second closed, the first takes them again.
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('A1');
+    });
+
+    it('leaves an outside field its editing keys', () => {
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        const { event } = createMouseEvent();
+        showContextMenu(event, { items: items() });
+        input.focus();
+
+        expect(press(' ').defaultPrevented).toBe(false);
+        expect(press('Home').defaultPrevented).toBe(false);
+        expect(document.activeElement).toBe(input);
+
+        press('ArrowDown');
+        expect(focusedTitle()).toBe('One');
     });
 });

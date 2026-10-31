@@ -10,7 +10,9 @@ import { showContextMenu } from '@zyno-io/vue-foundation';
 
 ## `showContextMenu(event, config)`
 
-Displays a context menu at the mouse position. The menu opens toward whichever side of the cursor has room (right/below by preference), and a menu taller than the viewport pins to it and scrolls internally. Clicking outside the menu closes it.
+Displays a context menu for `event.currentTarget`. From a pointer event it opens at the mouse position, toward whichever side of the cursor has room (right/below by preference); a menu taller than the viewport pins to it and scrolls internally. Clicking outside the menu closes it.
+
+`event` may also be a `KeyboardEvent`, or the click a focused link or button fires on Enter/Space (`detail` 0, no coordinates). Such a menu has no cursor to open at: it opens below the target (above it when out of room) and focuses its first item.
 
 ```typescript
 function handleRightClick(e: MouseEvent) {
@@ -68,9 +70,28 @@ An item with `items` opens a flyout submenu on hover or click instead of running
 
 When `shouldConfirm` is `true`, the first click changes the item text to "Confirm". Moving the mouse away from the item resets it to its original text. The handler is only executed on the second click.
 
+## Keyboard
+
+The open menu is keyboard-driven, however it was opened:
+
+| Key               | Action                                                                |
+| ----------------- | --------------------------------------------------------------------- |
+| `↓` / `↑`         | Next / previous item, wrapping; from a pointer-opened menu, enters it |
+| `Home` / `End`    | First / last item                                                     |
+| `Enter` / `Space` | Activates the focused item (or opens its submenu)                     |
+| `→` / `←`         | Opens the focused item's submenu / closes the current submenu         |
+| `Escape`          | Closes the current submenu, or the menu from the root                 |
+| `Tab`             | Closes the menu                                                       |
+
+Keys are handled in the capture phase, so `Escape` closes the menu and not, say, a modal beneath it. Only the most recently opened menu takes keys, a held key's repeats are ignored (holding `Enter` on the opener won't pick an item), and a text field focused outside the menu keeps `Space`, `Home` and `End`.
+
+Hovering an item focuses it, so the arrows continue from the pointer — once the mouse actually moves: a menu that opens, or scrolls, under a resting cursor keeps the keyboard's highlight. Moving focus closes any other item's submenu.
+
+After the keyboard has been used, closing returns focus to the target if it was still in the menu. A pointer-only menu leaves focus as it was. A `shouldConfirm` item takes a second `Enter`, and resets when focus leaves it.
+
 ## Styling
 
-Style the menu using the `.vf-context-menu` CSS class. Items use `.item`, separators use `.separator`, and items awaiting confirmation have the `.pending-confirm` class.
+Style the menu using the `.vf-context-menu` CSS class (`role="menu"`). Items use `.item` (`role="menuitem"`, focusable; submenu parents carry `aria-haspopup`/`aria-expanded`), separators use `.separator`, and items awaiting confirmation have the `.pending-confirm` class. Since hover and keyboard share the item focus, style `.item:focus` the same as `.item:hover` (and drop its outline) to get one highlight.
 
 ## Demo
 
