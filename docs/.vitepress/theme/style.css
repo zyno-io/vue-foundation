@@ -188,6 +188,27 @@
     margin: 4px 0;
 }
 
+.vf-context-menu .heading {
+    padding: 8px 12px 2px;
+    color: var(--vp-c-text-3);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: default;
+}
+
+.vf-context-menu .item.danger {
+    color: var(--vp-c-danger-1);
+}
+
+/* The first click on a `shouldConfirm` item: it reads "Confirm" until clicked again or left. */
+.vf-context-menu .item.pending-confirm,
+.vf-context-menu .item.pending-confirm:hover,
+.vf-context-menu .item.pending-confirm:focus {
+    background: var(--vp-c-danger-1);
+    color: var(--vp-c-white);
+    font-weight: 600;
+}
+
 .vf-mask {
     position: absolute;
     inset: 0;

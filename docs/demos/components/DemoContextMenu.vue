@@ -28,8 +28,9 @@ function onContextMenu(e: MouseEvent) {
     e.preventDefault();
     showContextMenu(e, {
         items: [
-            { title: 'Edit', handler: () => (lastAction.value = 'Edit clicked') },
-            { title: 'Duplicate', handler: () => (lastAction.value = 'Duplicate clicked') },
+            { title: 'This message', heading: true },
+            { title: 'Reply', handler: () => (lastAction.value = 'Reply clicked') },
+            { title: 'Forward', handler: () => (lastAction.value = 'Forward clicked') },
             {
                 title: 'Move to',
                 items: [
@@ -44,10 +45,19 @@ function onContextMenu(e: MouseEvent) {
                     }
                 ]
             },
-            '-',
             {
-                title: 'Delete',
-                handler: () => (lastAction.value = 'Delete confirmed'),
+                title: 'Delete message',
+                handler: () => (lastAction.value = 'Message delete confirmed'),
+                class: 'danger',
+                shouldConfirm: true
+            },
+            '-',
+            { title: 'Whole conversation', heading: true },
+            { title: 'Mark all as read', handler: () => (lastAction.value = 'Conversation marked read') },
+            { title: 'Mute', handler: () => (lastAction.value = 'Conversation muted') },
+            {
+                title: 'Delete conversation',
+                handler: () => (lastAction.value = 'Conversation delete confirmed'),
                 class: 'danger',
                 shouldConfirm: true
             }
