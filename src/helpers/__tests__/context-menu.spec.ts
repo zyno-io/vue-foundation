@@ -198,6 +198,51 @@ describe('positioning', () => {
     });
 });
 
+describe('headings', () => {
+    const items = () => [
+        { title: 'Contact', heading: true, class: 'section' },
+        { title: 'Assign', handler: vi.fn() },
+        '-' as const,
+        { title: 'Conversation', heading: true, handler: vi.fn() },
+        { title: 'Unassign', handler: vi.fn() }
+    ];
+
+    it('renders headings apart from items', () => {
+        const { event } = createMouseEvent();
+        showContextMenu(event, { items: items() });
+
+        const headings = document.querySelectorAll<HTMLElement>('.vf-context-menu .heading');
+        expect(Array.from(headings).map(h => h.innerText)).toEqual(['Contact', 'Conversation']);
+        expect(headings[0]!.classList.contains('section')).toBe(true);
+        expect(headings[0]!.classList.contains('item')).toBe(false);
+        expect(headings[0]!.getAttribute('role')).toBe('presentation');
+        expect(headings[0]!.hasAttribute('tabindex')).toBe(false);
+        expect(document.querySelectorAll('.item')).toHaveLength(2);
+    });
+
+    it('keeps the menu open and runs nothing when a heading is clicked', () => {
+        const { event } = createMouseEvent();
+        const menuItems = items();
+        showContextMenu(event, { items: menuItems });
+
+        document.querySelectorAll<HTMLElement>('.heading')[1]!.click();
+
+        expect(document.querySelector('.vf-context-menu')).not.toBeNull();
+        expect((menuItems[3] as { handler: () => void }).handler).not.toHaveBeenCalled();
+    });
+
+    it('focuses the first real item from the keyboard and skips headings with the arrows', () => {
+        const { event } = createKeyboardClick();
+        showContextMenu(event, { items: items() });
+
+        expect((document.activeElement as HTMLElement).innerText).toBe('Assign');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        expect((document.activeElement as HTMLElement).innerText).toBe('Unassign');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        expect((document.activeElement as HTMLElement).innerText).toBe('Assign');
+    });
+});
+
 describe('submenus', () => {
     function menus() {
         return document.querySelectorAll('.vf-context-menu');

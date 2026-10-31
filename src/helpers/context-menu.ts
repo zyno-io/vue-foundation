@@ -1,5 +1,10 @@
 export interface ContextMenuItem {
     title: string;
+    /**
+     * Renders `title` as a section heading over the items that follow it: not focusable, skipped by the
+     * arrows, and inert when clicked (the menu stays open). `handler`, `items` and `shouldConfirm` are ignored.
+     */
+    heading?: boolean;
     /** Runs when the item is clicked. Ignored when `items` is set. */
     handler?: () => void;
     class?: string;
@@ -121,6 +126,21 @@ export function showContextMenu(e: MouseEvent | KeyboardEvent, config: ContextMe
                 separatorEl.setAttribute('role', 'separator');
                 separatorEl.addEventListener('mouseenter', () => pointerActive && closeChild());
                 menuEl.appendChild(separatorEl);
+                return;
+            }
+
+            if (item.heading) {
+                const headingEl = document.createElement('div');
+                headingEl.classList.add('heading');
+                if (item.class) headingEl.classList.add(item.class);
+                // Not a menuitem: assistive tech reads the menu as its items, and a heading is not one.
+                headingEl.setAttribute('role', 'presentation');
+                headingEl.style.userSelect = 'none';
+                headingEl.innerText = item.title;
+                headingEl.addEventListener('mouseenter', () => pointerActive && closeChild());
+                // Inert: a click here must not reach the overlay, which would close the menu.
+                headingEl.addEventListener('click', e => e.stopPropagation());
+                menuEl.appendChild(headingEl);
                 return;
             }
 

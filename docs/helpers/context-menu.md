@@ -1,6 +1,6 @@
 # Context Menu
 
-A vanilla JS context menu with separator, submenu, and confirmation support.
+A vanilla JS context menu with separator, heading, submenu, and confirmation support.
 
 ## Import
 
@@ -55,12 +55,29 @@ function handleRightClick(e: MouseEvent) {
 | Property        | Type                         | Description                                                |
 | --------------- | ---------------------------- | ---------------------------------------------------------- |
 | `title`         | `string`                     | Display text for the menu item                             |
+| `heading`       | `boolean`                    | Renders the item as a section heading (see below)          |
 | `handler`       | `() => void`                 | Callback executed when the item is clicked                 |
 | `class`         | `string`                     | CSS class added to the item element                        |
 | `shouldConfirm` | `boolean`                    | Requires a second click to confirm (see below)             |
 | `items`         | `(ContextMenuItem \| '-')[]` | Child items — the item opens a submenu instead (see below) |
 
 Use the string `'-'` in the `items` array to insert a visual separator between groups of items.
+
+## Headings
+
+An item with `heading: true` labels the items that follow it, e.g. two sections of the same actions for different targets. A heading is not an item: it renders as `.heading` (`role="presentation"`, plus any `class`), is never focused, is skipped by the arrow keys (a keyboard-opened menu focuses the first real item), and clicking it does nothing and leaves the menu open. `handler`, `items` and `shouldConfirm` are ignored on it.
+
+```typescript
+showContextMenu(e, {
+    items: [
+        { title: 'Jane Doe', heading: true },
+        { title: 'Assign to me', handler: () => assignContact() },
+        '-',
+        { title: 'This conversation', heading: true },
+        { title: 'Assign to me', handler: () => assignConversation() }
+    ]
+});
+```
 
 ## Submenus
 
@@ -91,7 +108,7 @@ After the keyboard has been used, closing returns focus to the target if it was 
 
 ## Styling
 
-Style the menu using the `.vf-context-menu` CSS class (`role="menu"`). Items use `.item` (`role="menuitem"`, focusable; submenu parents carry `aria-haspopup`/`aria-expanded`), separators use `.separator`, and items awaiting confirmation have the `.pending-confirm` class. Since hover and keyboard share the item focus, style `.item:focus` the same as `.item:hover` (and drop its outline) to get one highlight.
+Style the menu using the `.vf-context-menu` CSS class (`role="menu"`). Items use `.item` (`role="menuitem"`, focusable; submenu parents carry `aria-haspopup`/`aria-expanded`), separators use `.separator`, headings use `.heading`, and items awaiting confirmation have the `.pending-confirm` class. Since hover and keyboard share the item focus, style `.item:focus` the same as `.item:hover` (and drop its outline) to get one highlight.
 
 ## Demo
 
