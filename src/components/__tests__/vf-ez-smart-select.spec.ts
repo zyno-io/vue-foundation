@@ -34,6 +34,42 @@ describe('VfEzSmartSelect', () => {
         expect(optionEls.length).toBe(2);
     });
 
+    it('forwards the option slot to the inner select', async () => {
+        vi.useFakeTimers();
+        const wrapper = mount(VfEzSmartSelect, {
+            props: {
+                modelValue: null,
+                options: { apple: 'Apple', banana: 'Banana' } as Record<string, string>
+            },
+            slots: {
+                option: `<template #option="{ option }"><em class="custom">{{ option.ref.value }}:{{ option.title }}</em></template>`
+            },
+            attachTo: document.body
+        });
+
+        await openDropdown(wrapper);
+        const custom = [...document.querySelectorAll('.vf-smart-select-options .option .custom')].map(el => el.textContent);
+        expect(custom).toEqual(['apple:Apple', 'banana:Banana']);
+        expect(document.querySelector('.vf-smart-select-options .option .title')).toBeNull();
+    });
+
+    it('renders option labels as text when no slot is given', async () => {
+        vi.useFakeTimers();
+        const hostile = '<img src=x onerror="window.__vfPwned = true">';
+        const wrapper = mount(VfEzSmartSelect, {
+            props: {
+                modelValue: null,
+                options: { a: hostile } as Record<string, string>
+            },
+            attachTo: document.body
+        });
+
+        await openDropdown(wrapper);
+        const list = document.querySelector('.vf-smart-select-options')!;
+        expect(list.querySelector('img')).toBeNull();
+        expect(list.querySelector('.option .title')!.textContent).toBe(hostile);
+    });
+
     it('renders with array options', async () => {
         vi.useFakeTimers();
         const wrapper = mount(VfEzSmartSelect, {

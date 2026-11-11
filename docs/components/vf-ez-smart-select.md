@@ -29,6 +29,19 @@ import { VfEzSmartSelect } from '@zyno-io/vue-foundation';
 | `formatter`   | `(label: string, key: T) => string` | Custom label formatter                |
 | `name`        | `string`                            | HTML name attribute                   |
 
+## Slots
+
+Labels are rendered as text. For rich option content, use the `option` slot; it is forwarded to the inner `VfSmartSelect`. `option.title` is the formatted label and `option.ref` is `{ value, label }` for that entry. `no-results` is forwarded too.
+
+```vue
+<VfEzSmartSelect v-model="status" :options="{ active: 'Active', paused: 'Paused' }">
+    <template #option="{ option }">
+        <span :class="`dot dot--${option.ref.value}`" />
+        {{ option.title }}
+    </template>
+</VfEzSmartSelect>
+```
+
 ## Demo
 
 <DemoContainer>
