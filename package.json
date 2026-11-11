@@ -63,7 +63,7 @@
         "@vue/tsconfig": "^0.9.1",
         "@zyno-io/openapi-client-codegen": "^2.10.0",
         "date-fns": "^4.4.0",
-        "happy-dom": "^20.14.5",
+        "happy-dom": "^21.0.4",
         "jsdom": "^30.1.0",
         "lefthook": "^2.1.14",
         "lodash": "^4.18.1",
