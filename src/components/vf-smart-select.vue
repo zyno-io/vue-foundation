@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/no-v-html -->
 <template>
     <div ref="el" class="vf-smart-select" :class="{ disabled: effectiveDisabled, open: shouldDisplayOptions }">
         <input
@@ -39,8 +38,10 @@
                         @mousedown="selectOption(option)"
                     >
                         <slot name="option" :option="option">
-                            <div class="title" v-html="option.title" />
-                            <div v-if="option.subtitle" class="subtitle" v-html="option.subtitle" />
+                            <!-- Rendered as text: titles are usually data (names, labels) and must not be
+                                 parsed as markup. Use this slot for rich content. -->
+                            <div class="title">{{ option.title }}</div>
+                            <div v-if="option.subtitle" class="subtitle">{{ option.subtitle }}</div>
                         </slot>
                     </div>
                     <div v-if="!effectiveOptions.length && searchText" class="no-results">

@@ -28,9 +28,9 @@ import { VfSmartSelect } from '@zyno-io/vue-foundation';
 | `valueField`              | `keyof T`                                  | Field used as the emitted value                      |
 | `valueExtractor`          | `(option: T) => V`                         | Custom value extraction                              |
 | `labelField`              | `keyof T`                                  | Field displayed as option text                       |
-| `formatter`               | `(option: T) => string`                    | Custom display formatter                             |
+| `formatter`               | `(option: T) => string`                    | Custom display formatter (rendered as text)          |
 | `selectionFormatter`      | `(option: T) => string`                    | Custom formatter for the selected value in the input |
-| `subtitleFormatter`       | `(option: T) => string`                    | Format subtitle text below option                    |
+| `subtitleFormatter`       | `(option: T) => string`                    | Format subtitle text below option (rendered as text) |
 | `classForOption`          | `(option: T) => string`                    | CSS class per option                                 |
 | `groupField`              | `keyof T`                                  | Field to group options by                            |
 | `groupFormatter`          | `(option: T) => string`                    | Custom group label formatter                         |
