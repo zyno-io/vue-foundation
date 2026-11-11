@@ -73,6 +73,25 @@ describe('VfSmartSelect', () => {
         expect(optionEls.length).toBe(3);
     });
 
+    it('renders option titles and subtitles as text, not markup', async () => {
+        vi.useFakeTimers();
+        const hostile = '<img src=x onerror="window.__vfPwned = true"><b>bold</b>';
+        const wrapper = mountSmartSelect({
+            options: [{ id: 1, name: hostile }],
+            subtitleFormatter: () => hostile,
+            nullTitle: hostile
+        });
+        await openDropdown(wrapper);
+
+        const list = document.querySelector('.vf-smart-select-options')!;
+        expect(list.querySelector('img')).toBeNull();
+        expect(list.querySelector('b')).toBeNull();
+        const optionEls = list.querySelectorAll('.option');
+        expect(optionEls.length).toBe(2);
+        optionEls.forEach(el => expect(el.querySelector('.title')!.textContent).toBe(hostile));
+        expect(optionEls[1].querySelector('.subtitle')!.textContent).toBe(hostile);
+    });
+
     it('renders null option when nullTitle is provided', async () => {
         vi.useFakeTimers();
         const wrapper = mountSmartSelect({ nullTitle: 'None', debug: true });
