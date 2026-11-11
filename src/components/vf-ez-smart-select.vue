@@ -6,7 +6,15 @@
         :null-title="nullTitle"
         :placeholder="placeholder"
         :name="name"
-    />
+    >
+        <!-- Forwarded only when given, so the inner select keeps its own default rendering otherwise. -->
+        <template v-if="$slots.option" #option="slotProps">
+            <slot name="option" v-bind="slotProps" />
+        </template>
+        <template v-if="$slots['no-results']" #no-results>
+            <slot name="no-results" />
+        </template>
+    </VfSmartSelect>
 </template>
 
 <script lang="ts" setup generic="T extends string">

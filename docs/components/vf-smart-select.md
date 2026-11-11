@@ -58,6 +58,8 @@ import { VfSmartSelect } from '@zyno-io/vue-foundation';
 
 ## Slots
 
+Option titles and subtitles are rendered as text, never parsed as HTML. Use the `option` slot when an option needs markup.
+
 ```vue
 <VfSmartSelect v-model="value" :options="items">
     <!-- Custom option rendering -->
