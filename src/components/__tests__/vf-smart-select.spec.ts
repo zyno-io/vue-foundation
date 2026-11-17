@@ -212,6 +212,41 @@ describe('VfSmartSelect', () => {
         expect(secondCreateOption?.textContent).toContain('mango');
     });
 
+    it('renders the create option label with the typed text in bold, as text', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountSmartSelect({ onCreateItem: vi.fn<(text: string) => void>() });
+        await openDropdown(wrapper);
+
+        await wrapper.find('input').trigger('keydown', { key: 'x' });
+        await wrapper.find('input').setValue('<b>sean</b>');
+        vi.runAllTimers();
+        await wrapper.vm.$nextTick();
+        vi.runAllTimers();
+        await wrapper.vm.$nextTick();
+
+        const createOption = document.querySelector('.vf-smart-select-options .option.create-option');
+        expect(createOption?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Create <b>sean</b>...');
+        expect(createOption?.querySelector('strong')?.textContent).toBe('<b>sean</b>');
+        expect(createOption?.querySelector('b')).toBeNull();
+    });
+
+    it('renders only the typed text on the create option when showCreateTextOnNewItem is false', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountSmartSelect({ onCreateItem: vi.fn<(text: string) => void>(), showCreateTextOnNewItem: false });
+        await openDropdown(wrapper);
+
+        await wrapper.find('input').trigger('keydown', { key: 'x' });
+        await wrapper.find('input').setValue('sean');
+        vi.runAllTimers();
+        await wrapper.vm.$nextTick();
+        vi.runAllTimers();
+        await wrapper.vm.$nextTick();
+
+        const createOption = document.querySelector('.vf-smart-select-options .option.create-option');
+        expect(createOption?.textContent?.trim()).toBe('sean');
+        expect(createOption?.querySelector('strong')).toBeNull();
+    });
+
     it('sets required attribute on input', () => {
         const wrapper = mountSmartSelect({ required: true });
         expect(wrapper.find('input').attributes('required')).toBeDefined();
