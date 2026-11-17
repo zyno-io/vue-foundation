@@ -40,7 +40,11 @@
                         <slot name="option" :option="option">
                             <!-- Rendered as text: titles are usually data (names, labels) and must not be
                                  parsed as markup. Use this slot for rich content. -->
-                            <div class="title">{{ option.title }}</div>
+                            <div v-if="option.key === CreateSymbol && shouldShowCreateTextOnNewItem" class="title">
+                                Create <strong>{{ option.title }}</strong
+                                >...
+                            </div>
+                            <div v-else class="title">{{ option.title }}</div>
                             <div v-if="option.subtitle" class="subtitle">{{ option.subtitle }}</div>
                         </slot>
                     </div>
@@ -266,9 +270,9 @@ const effectiveOptions = computed(() => {
                 if (!hasExactMatch) {
                     options.push({
                         key: CreateSymbol,
-                        title: shouldShowCreateTextOnNewItem.value
-                            ? 'Create <strong>' + searchText.value.trim() + '</strong>...'
-                            : searchText.value.trim()
+                        // Plain search text; the template adds the "Create ..." wrapper so the typed text is never
+                        // parsed as markup.
+                        title: searchText.value.trim()
                     });
                 }
             }
